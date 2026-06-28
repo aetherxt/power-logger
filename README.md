@@ -10,7 +10,7 @@ Live battery power monitor + CSV data logger for Linux laptops.
 ## Quick start
 
 ```sh
-git clone <url> && cd power-logger
+git clone https://github.com/aetherxt/power-logger.git && cd power-logger
 make install
 ```
 
