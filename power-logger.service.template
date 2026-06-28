@@ -1,0 +1,11 @@
+[Unit]
+Description=Power stats CSV logger
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=@CURDIR@/venv/bin/python @CURDIR@/record.py
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
