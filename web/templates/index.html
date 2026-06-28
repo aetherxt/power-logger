@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Power Logger</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+</head>
+
+<body class="bg-[#1e2030] text-[#cad3f5] font-sans antialiased overflow-x-hidden">
+
+  <div class="max-w-5xl mx-auto mb-10 p-6">
+    <h1 class="text-4xl font-semibold mb-1">Power Logger</h1>
+    <p class="text-sm text-[#6e738d] mb-3" id="file-label">
+      {% if latest_file %}Showing: {{ latest_file }}{% else %}No data files found{% endif %}
+    </p>
+
+    {% if csv_files %}
+    <div class="flex items-center justify-center gap-3 mb-4 relative" id="date-nav">
+      <button id="date-prev" class="px-2.5 py-1 rounded-md text-sm font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5] disabled:opacity-30 disabled:cursor-default">&lt;</button>
+      <span class="text-lg font-semibold min-w-[8rem] text-center cursor-pointer hover:text-[#b8c0e0]" id="date-display">{{ latest_file.replace('.csv', '') }}</span>
+      <button id="date-next" class="px-2.5 py-1 rounded-md text-sm font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5] disabled:opacity-30 disabled:cursor-default">&gt;</button>
+      <div id="date-calendar" class="absolute top-full mt-1 left-1/2 -translate-x-1/2 bg-[#363a4f] rounded-xl p-4 shadow-lg z-10 hidden" style="width: 320px;">
+        <div class="flex items-center justify-between mb-3">
+          <button id="cal-month-prev" class="text-sm px-2 py-1 rounded transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">&lt;</button>
+          <span class="text-sm font-semibold" id="cal-month-label">June 2026</span>
+          <button id="cal-month-next" class="text-sm px-2 py-1 rounded transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">&gt;</button>
+        </div>
+        <div class="grid grid-cols-7 gap-1.5 text-center text-sm" id="cal-grid">
+          <span class="text-[#6e738d]">Mo</span><span class="text-[#6e738d]">Tu</span><span class="text-[#6e738d]">We</span><span class="text-[#6e738d]">Th</span><span class="text-[#6e738d]">Fr</span><span class="text-[#6e738d]">Sa</span><span class="text-[#6e738d]">Su</span>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="flex flex-wrap items-center gap-2 mb-5">
+      <button id="refresh-btn" class="bg-[#b7bdf8] text-[#1e2030] px-5 py-2 rounded-lg font-semibold text-sm hover:bg-[#c6a0f6] transition cursor-pointer">
+        Refresh
+      </button>
+      <div class="flex gap-1 bg-[#24273a] rounded-lg p-1" id="range-btns">
+        <button data-ms="3600000" class="range-btn px-3 py-1.5 rounded-md text-sm font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">1h</button>
+        <button data-ms="7200000" class="range-btn px-3 py-1.5 rounded-md text-sm font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">2h</button>
+        <button data-ms="18000000" class="range-btn px-3 py-1.5 rounded-md text-sm font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">5h</button>
+        <button data-ms="0" class="range-btn px-3 py-1.5 rounded-md text-sm font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">All</button>
+      </div>
+    </div>
+
+    <div id="charts" {% if not latest_file %}class="hidden"{% endif %}>
+      <div class="bg-[#24273a] rounded-xl p-5 mb-5 w-full">
+        <div class="flex flex-wrap items-center justify-between gap-y-2 mb-3">
+          <h2 class="text-sm font-medium text-[#b8c0e0]">Power (W)</h2>
+          <div class="flex items-center gap-2">
+            <div class="flex gap-1 bg-[#1e2030] rounded-lg p-1">
+              <button data-chart="power" data-ms="3600000" class="chart-range-btn px-2 py-1 rounded-md text-xs font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">1h</button>
+              <button data-chart="power" data-ms="7200000" class="chart-range-btn px-2 py-1 rounded-md text-xs font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">2h</button>
+              <button data-chart="power" data-ms="18000000" class="chart-range-btn px-2 py-1 rounded-md text-xs font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">5h</button>
+              <button data-chart="power" data-ms="0" class="chart-range-btn px-2 py-1 rounded-md text-xs font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">All</button>
+            </div>
+            <span class="text-xs text-[#6e738d] w-14 text-right" id="power-range-label"></span>
+            <div class="flex gap-1 bg-[#1e2030] rounded-lg p-1">
+              <button data-chart="power" data-action="in" class="chart-zoom-btn px-2 py-1 rounded-md text-xs font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">+</button>
+              <button data-chart="power" data-action="out" class="chart-zoom-btn px-2 py-1 rounded-md text-xs font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">-</button>
+              <button data-chart="power" data-action="reset" class="chart-zoom-btn px-2 py-1 rounded-md text-xs font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">↺</button>
+            </div>
+          </div>
+        </div>
+        <div class="relative h-[300px] w-full"><canvas id="powerChart"></canvas></div>
+      </div>
+      <div class="bg-[#24273a] rounded-xl p-5 w-full">
+        <div class="flex flex-wrap items-center justify-between gap-y-2 mb-3">
+          <h2 class="text-sm font-medium text-[#b8c0e0]">Battery (%)</h2>
+          <div class="flex items-center gap-2">
+            <div class="flex gap-1 bg-[#1e2030] rounded-lg p-1">
+              <button data-chart="battery" data-ms="3600000" class="chart-range-btn px-2 py-1 rounded-md text-xs font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">1h</button>
+              <button data-chart="battery" data-ms="7200000" class="chart-range-btn px-2 py-1 rounded-md text-xs font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">2h</button>
+              <button data-chart="battery" data-ms="18000000" class="chart-range-btn px-2 py-1 rounded-md text-xs font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">5h</button>
+              <button data-chart="battery" data-ms="0" class="chart-range-btn px-2 py-1 rounded-md text-xs font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">All</button>
+            </div>
+            <span class="text-xs text-[#6e738d] w-14 text-right" id="battery-range-label"></span>
+            <div class="flex gap-1 bg-[#1e2030] rounded-lg p-1">
+              <button data-chart="battery" data-action="in" class="chart-zoom-btn px-2 py-1 rounded-md text-xs font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">+</button>
+              <button data-chart="battery" data-action="out" class="chart-zoom-btn px-2 py-1 rounded-md text-xs font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">-</button>
+              <button data-chart="battery" data-action="reset" class="chart-zoom-btn px-2 py-1 rounded-md text-xs font-medium transition cursor-pointer text-[#6e738d] hover:text-[#cad3f5]">↺</button>
+            </div>
+          </div>
+        </div>
+        <div class="relative h-[300px] w-full"><canvas id="batteryChart"></canvas></div>
+      </div>
+    </div>
+
+    <div id="no-data" class="{% if latest_file %}hidden{% endif %} text-center text-[#6e738d] py-16 text-lg">
+      No CSV data found in ~/power-log/
+    </div>
+  </div>
+
+  <script>
+    let fullData = null;
+    let selectedMs = 0;
+    let currentFile = '{{ latest_file }}';
+
+    const MIN_RANGE = 60000;
+    const COLORS = {
+      charging: '#a6da95',
+      discharging: '#ed8796',
+      full: '#7dc4e4',
+      grid: '#494d64',
+      text: '#6e738d',
+    };
+
+    function segmentColor(r) {
+      if (!r) return COLORS.discharging;
+      if (r.pct >= 79 && r.pct <= 80) return COLORS.full;
+      if (r.osc) return COLORS.full;
+      if (r.state === 'charging') return COLORS.charging;
+      if (r.state === 'fully-charged' || r.state === 'full') return COLORS.full;
+      return COLORS.discharging;
+    }
+
+    function stateLabel(d) {
+      if (d.pct >= 79 && d.pct <= 80) return 'Charge limit (79\u201380%)';
+      if (d.osc) return 'Oscillating (charge limit)';
+      if (d.state === 'charging') return 'Charging';
+      if (d.state === 'full' || d.state === 'fully-charged') return 'Full';
+      return 'Discharging';
+    }
+
+    // -- view state per chart --
+    const views = {
+      power:   { min: null, max: null, dataMin: null, dataMax: null, selectedMs: 0 },
+      battery: { min: null, max: null, dataMin: null, dataMax: null, selectedMs: 0 },
+    };
+
+    function formatDuration(ms) {
+      if (!ms || ms < 60000) return '0m';
+      const m = Math.round(ms / 60000);
+      if (m < 60) return '~' + m + 'm';
+      const h = (ms / 3600000).toFixed(1);
+      return '~' + h.replace(/\.0$/, '') + 'h';
+    }
+
+    function updateRangeLabel(name) {
+      const v = views[name];
+      const ms = v.min !== null ? v.max - v.min : 0;
+      $('#' + name + '-range-label').text(formatDuration(ms));
+    }
+
+    function makeChartOpts(yOpts) {
+      return {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        interaction: { mode: 'nearest', intersect: false },
+        scales: {
+          x: {
+            type: 'time',
+            time: { tooltipFormat: 'HH:mm:ss', displayFormats: { second: 'HH:mm:ss', minute: 'HH:mm' } },
+            ticks: { color: COLORS.text, maxTicksLimit: 12 },
+            grid: { color: COLORS.grid },
+          },
+          y: yOpts,
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              labelColor: ctx => {
+                const c = segmentColor(ctx.raw);
+                return { borderColor: c, backgroundColor: c };
+              },
+              afterBody: items => {
+                const d = items[0].raw;
+                const lbl = stateLabel(d);
+                return d.charger_type ? `${lbl} (${d.charger_type})` : lbl;
+              },
+            },
+          },
+        },
+      };
+    }
+
+    const powerChart = new Chart($('#powerChart'), {
+      type: 'line',
+      data: {
+        datasets: [{
+          label: 'Power (W)', data: [],
+          borderColor: '#b7bdf8', backgroundColor: '#b7bdf8',
+          spanGaps: false, pointRadius: 0, pointHitRadius: 6,
+          borderWidth: 1.5, tension: 0.1,
+          segment: { borderColor: ctx => segmentColor(ctx.p0.raw) },
+        }],
+      },
+      options: makeChartOpts({
+        beginAtZero: true,
+        ticks: { color: COLORS.text, callback: v => v + ' W' },
+        grid: { color: COLORS.grid },
+      }),
+    });
+
+    const batteryChart = new Chart($('#batteryChart'), {
+      type: 'line',
+      data: {
+        datasets: [{
+          label: 'Battery (%)', data: [],
+          borderColor: '#a6da95', backgroundColor: '#a6da95',
+          spanGaps: false, pointRadius: 0, pointHitRadius: 6,
+          borderWidth: 1.5, tension: 0.1,
+          segment: { borderColor: ctx => segmentColor(ctx.p0.raw) },
+        }],
+      },
+      options: makeChartOpts({
+        min: 0, max: 100,
+        ticks: { color: COLORS.text, callback: v => v + '%' },
+        grid: { color: COLORS.grid },
+      }),
+    });
+
+    const chartMap = { power: powerChart, battery: batteryChart };
+
+    // -- helpers --
+
+    function insertGapSeparators(pts, maxGapMs) {
+      const out = [];
+      for (let i = 0; i < pts.length; i++) {
+        if (i > 0 && pts[i].x - pts[i - 1].x > maxGapMs)
+          out.push({ x: pts[i - 1].x + maxGapMs, y: null });
+        out.push(pts[i]);
+      }
+      return out;
+    }
+
+    function detectOscillation(pts, windowSize) {
+      for (let i = 0; i < pts.length; i++) {
+        const start = Math.max(0, i - windowSize);
+        const end = Math.min(pts.length - 1, i + windowSize);
+        let transitions = 0;
+        for (let j = start + 1; j <= end; j++) {
+          if (pts[j].state !== pts[j - 1].state) transitions++;
+        }
+        pts[i].osc = transitions > 2;
+      }
+    }
+
+    function setView(chart, name, min, max) {
+      views[name].min = min;
+      views[name].max = max;
+      chart.options.scales.x.min = min;
+      chart.options.scales.x.max = max;
+      updateRangeLabel(name);
+    }
+
+    function resetView(chart, name) {
+      setView(chart, name, views[name].dataMin, views[name].dataMax);
+    }
+
+    function resetToSelectedView(chart, name) {
+      const v = views[name];
+      if (v.selectedMs > 0 && v.selectedMs < v.dataMax - v.dataMin)
+        setView(chart, name, v.dataMax - v.selectedMs, v.dataMax);
+      else
+        resetView(chart, name);
+    }
+
+    // -- core update (one chart) --
+
+    function updateOneChart(name, data, viewMs) {
+      const chart = chartMap[name];
+      let raw;
+      if (name === 'power') {
+        raw = data.map(d => ({
+          x: new Date(d.time).getTime(),
+          y: d.energy_rate_w, pct: d.percentage,
+          state: d.state, charger_type: d.charger_type,
+        }));
+      } else {
+        raw = data.map(d => ({
+          x: new Date(d.time).getTime(),
+          y: d.percentage, pct: d.percentage,
+          state: d.state,
+        }));
+      }
+      detectOscillation(raw, 5);
+      const points = insertGapSeparators(raw, 5000);
+      chart.data.datasets[0].data = points;
+
+      const xs = points.filter(p => p.y !== null).map(p => p.x);
+      if (xs.length) {
+        views[name].dataMin = Math.min(...xs);
+        views[name].dataMax = Math.max(...xs);
+        if (viewMs && viewMs > 0 && viewMs < views[name].dataMax - views[name].dataMin) {
+          setView(chart, name, views[name].dataMax - viewMs, views[name].dataMax);
+        } else {
+          resetView(chart, name);
+        }
+      }
+      chart.update('none');
+    }
+
+    // -- range + data loading --
+
+    function applyChartRange(name) {
+      if (!fullData) return;
+      updateOneChart(name, fullData, views[name].selectedMs);
+    }
+
+    function applyRange() {
+      if (!fullData) return;
+      updateOneChart('power', fullData, selectedMs);
+      updateOneChart('battery', fullData, selectedMs);
+    }
+
+    function loadData(file) {
+      const url = file ? '/api/data?file=' + encodeURIComponent(file) : '/api/data';
+      $.getJSON(url)
+        .done(data => {
+          if (!data.length) {
+            $('#no-data').show();
+            $('#charts').hide();
+            return;
+          }
+          fullData = data;
+          currentFile = file || currentFile;
+          $('#file-label').text('Showing: ' + currentFile);
+          $('#no-data').hide();
+          $('#charts').show();
+          selectedMs = 0;
+          views.power.selectedMs = 0;
+          views.battery.selectedMs = 0;
+          applyRange();
+          $('.range-btn, .chart-range-btn')
+            .removeClass('bg-[#b7bdf8] text-[#1e2030]')
+            .addClass('text-[#6e738d]');
+          $('.range-btn[data-ms="0"], .chart-range-btn[data-ms="0"]')
+            .removeClass('text-[#6e738d]')
+            .addClass('bg-[#b7bdf8] text-[#1e2030]');
+        })
+        .fail(() => {
+          $('#no-data').show();
+          $('#charts').hide();
+        });
+    }
+
+    // -- date navigation --
+
+    const availableDates = {{ csv_files|map("replace", ".csv", "")|list|tojson }};
+    let currentIdx = availableDates.indexOf(currentFile.replace('.csv', ''));
+    let calMonth, calYear;
+
+    function updateDateDisplay() {
+      $('#date-display').text(availableDates[currentIdx]);
+      $('#date-prev').prop('disabled', currentIdx <= 0);
+      $('#date-next').prop('disabled', currentIdx >= availableDates.length - 1);
+    }
+
+    function loadDateByIndex(idx) {
+      if (idx < 0 || idx >= availableDates.length) return;
+      currentIdx = idx;
+      const file = availableDates[idx] + '.csv';
+      if (file === currentFile) return;
+      loadData(file);
+      updateDateDisplay();
+    }
+
+    function renderCalendar() {
+      const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      $('#cal-month-label').text(monthNames[calMonth] + ' ' + calYear);
+
+      const firstDay = new Date(calYear, calMonth, 1);
+      const lastDay = new Date(calYear, calMonth + 1, 0);
+      const startDow = (firstDay.getDay() + 6) % 7; // Monday=0
+      const dataSet = new Set(availableDates);
+
+      let html = '<span class="text-[#6e738d]">Mo</span><span class="text-[#6e738d]">Tu</span><span class="text-[#6e738d]">We</span><span class="text-[#6e738d]">Th</span><span class="text-[#6e738d]">Fr</span><span class="text-[#6e738d]">Sa</span><span class="text-[#6e738d]">Su</span>';
+      for (let i = 0; i < startDow; i++)
+        html += '<span></span>';
+
+      for (let d = 1; d <= lastDay.getDate(); d++) {
+        const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const hasData = dataSet.has(dateStr);
+        const isActive = dateStr === availableDates[currentIdx];
+        if (hasData) {
+          const cls = isActive ? 'bg-[#b7bdf8] text-[#1e2030]' : 'text-[#cad3f5] hover:bg-[#494d64] cursor-pointer';
+          html += `<span class="cal-day has-data rounded px-1 py-0.5 ${cls}" data-date="${dateStr}">${d}</span>`;
+        } else {
+          html += `<span class="cal-day text-[#5b6078] rounded px-1 py-0.5">${d}</span>`;
+        }
+      }
+      $('#cal-grid').html(html);
+    }
+
+    $('#date-prev').on('click', function () { loadDateByIndex(currentIdx - 1); });
+    $('#date-next').on('click', function () { loadDateByIndex(currentIdx + 1); });
+
+    $('#date-display').on('click', function (e) {
+      e.stopPropagation();
+      const cal = $('#date-calendar');
+      if (cal.is(':visible')) { cal.addClass('hidden'); return; }
+      const [y, m] = availableDates[currentIdx].split('-').map(Number);
+      calMonth = m - 1;
+      calYear = y;
+      renderCalendar();
+      cal.removeClass('hidden');
+    });
+
+    $(document).on('click', function () { $('#date-calendar').addClass('hidden'); });
+    $('#date-calendar').on('click', function (e) { e.stopPropagation(); });
+
+    $('#cal-month-prev').on('click', function () { if (--calMonth < 0) { calMonth = 11; calYear--; } renderCalendar(); });
+    $('#cal-month-next').on('click', function () { if (++calMonth > 11) { calMonth = 0; calYear++; } renderCalendar(); });
+
+    $('#cal-grid').on('click', '.cal-day.has-data', function () {
+      const dateStr = $(this).data('date');
+      const idx = availableDates.indexOf(dateStr);
+      if (idx >= 0) {
+        $('#date-calendar').addClass('hidden');
+        loadDateByIndex(idx);
+      }
+    });
+
+    // -- refresh --
+
+    $('#refresh-btn').on('click', function () { loadData(currentFile); });
+
+    // top-level range buttons (both charts)
+    $('#range-btns').on('click', '.range-btn', function () {
+      selectedMs = parseInt($(this).data('ms'));
+      views.power.selectedMs = selectedMs;
+      views.battery.selectedMs = selectedMs;
+      $('#range-btns .range-btn')
+        .removeClass('bg-[#b7bdf8] text-[#1e2030]')
+        .addClass('text-[#6e738d]');
+      $(this)
+        .removeClass('text-[#6e738d]')
+        .addClass('bg-[#b7bdf8] text-[#1e2030]');
+      $('.chart-range-btn[data-chart="power"], .chart-range-btn[data-chart="battery"]')
+        .removeClass('bg-[#b7bdf8] text-[#1e2030]')
+        .addClass('text-[#6e738d]');
+      $(`.chart-range-btn[data-chart="power"][data-ms="${selectedMs}"]`).removeClass('text-[#6e738d]').addClass('bg-[#b7bdf8] text-[#1e2030]');
+      $(`.chart-range-btn[data-chart="battery"][data-ms="${selectedMs}"]`).removeClass('text-[#6e738d]').addClass('bg-[#b7bdf8] text-[#1e2030]');
+      applyRange();
+    });
+
+    // per-chart range buttons
+    $('#charts').on('click', '.chart-range-btn', function () {
+      const name = $(this).data('chart');
+      const ms = parseInt($(this).data('ms'));
+      views[name].selectedMs = ms;
+      $(this).closest('.rounded-xl').find('.chart-range-btn')
+        .removeClass('bg-[#b7bdf8] text-[#1e2030]')
+        .addClass('text-[#6e738d]');
+      $(this)
+        .removeClass('text-[#6e738d]')
+        .addClass('bg-[#b7bdf8] text-[#1e2030]');
+      if (views.power.selectedMs === views.battery.selectedMs) {
+        selectedMs = views.power.selectedMs;
+        $('#range-btns .range-btn')
+          .removeClass('bg-[#b7bdf8] text-[#1e2030]')
+          .addClass('text-[#6e738d]');
+        $(`.range-btn[data-ms="${selectedMs}"]`).removeClass('text-[#6e738d]').addClass('bg-[#b7bdf8] text-[#1e2030]');
+      }
+      applyChartRange(name);
+    });
+
+    // -- zoom buttons --
+
+    function zoomChart(name, factor) {
+      const chart = chartMap[name];
+      const v = views[name];
+      if (v.min === null) return;
+
+      const center = (v.min + v.max) / 2;
+      const halfRange = (v.max - v.min) / 2 / factor;
+
+      let newMin = center - halfRange;
+      let newMax = center + halfRange;
+
+      if (newMin < v.dataMin) { newMax += v.dataMin - newMin; newMin = v.dataMin; }
+      if (newMax > v.dataMax) { newMin -= newMax - v.dataMax; newMax = v.dataMax; }
+      newMin = Math.max(newMin, v.dataMin);
+      newMax = Math.min(newMax, v.dataMax);
+
+      if (newMax - newMin < MIN_RANGE) return;
+      if (newMax - newMin > v.dataMax - v.dataMin) {
+        resetView(chart, name);
+      } else {
+        setView(chart, name, newMin, newMax);
+      }
+      chart.update('none');
+    }
+
+    $('#charts').on('click', '.chart-zoom-btn', function () {
+      const name = $(this).data('chart');
+      const action = $(this).data('action');
+      $(this).closest('.rounded-xl').find('.chart-range-btn')
+        .removeClass('bg-[#b7bdf8] text-[#1e2030]')
+        .addClass('text-[#6e738d]');
+      $('#range-btns .range-btn')
+        .removeClass('bg-[#b7bdf8] text-[#1e2030]')
+        .addClass('text-[#6e738d]');
+      if (action === 'reset') {
+        resetToSelectedView(chartMap[name], name);
+        chartMap[name].update('none');
+        $(this).closest('.rounded-xl').find('.chart-range-btn')
+          .removeClass('bg-[#b7bdf8] text-[#1e2030]')
+          .addClass('text-[#6e738d]');
+        $(`.chart-range-btn[data-chart="${name}"][data-ms="${views[name].selectedMs}"]`)
+          .removeClass('text-[#6e738d]')
+          .addClass('bg-[#b7bdf8] text-[#1e2030]');
+        if (views.power.selectedMs === views.battery.selectedMs) {
+          selectedMs = views.power.selectedMs;
+          $('#range-btns .range-btn')
+            .removeClass('bg-[#b7bdf8] text-[#1e2030]')
+            .addClass('text-[#6e738d]');
+          $(`.range-btn[data-ms="${selectedMs}"]`)
+            .removeClass('text-[#6e738d]')
+            .addClass('bg-[#b7bdf8] text-[#1e2030]');
+        }
+        return;
+      }
+      zoomChart(name, action === 'in' ? 1.5 : 1 / 1.5);
+    });
+
+    // -- drag to pan --
+
+    function setupPan(canvasId, chartName) {
+      const canvas = document.getElementById(canvasId);
+      let dragging = false;
+      let startX = 0;
+
+      canvas.addEventListener('mousedown', e => {
+        dragging = true;
+        startX = e.clientX;
+        canvas.style.cursor = 'grabbing';
+        $('#' + chartName + '-chart-card').find('.chart-range-btn')
+          .removeClass('bg-[#b7bdf8] text-[#1e2030]')
+          .addClass('text-[#6e738d]');
+        $('#range-btns .range-btn')
+          .removeClass('bg-[#b7bdf8] text-[#1e2030]')
+          .addClass('text-[#6e738d]');
+      });
+
+      window.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        const chart = chartMap[chartName];
+        const v = views[chartName];
+        if (v.min === null) return;
+
+        const area = chart.chartArea;
+        const pxRange = area.right - area.left;
+        const timeRange = v.max - v.min;
+        const dx = e.clientX - startX;
+        const dt = -(dx / pxRange) * timeRange;
+
+        let newMin = v.min + dt;
+        let newMax = v.max + dt;
+
+        if (newMin < v.dataMin) { newMax += v.dataMin - newMin; newMin = v.dataMin; }
+        if (newMax > v.dataMax) { newMin -= newMax - v.dataMax; newMax = v.dataMax; }
+        newMin = Math.max(newMin, v.dataMin);
+        newMax = Math.min(newMax, v.dataMax);
+
+        setView(chart, chartName, newMin, newMax);
+        chart.update('none');
+        startX = e.clientX;
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (dragging) {
+          dragging = false;
+          canvas.style.cursor = 'grab';
+        }
+      });
+
+      canvas.style.cursor = 'grab';
+    }
+
+    setupPan('powerChart', 'power');
+    setupPan('batteryChart', 'battery');
+
+    // -- init --
+
+    updateDateDisplay();
+
+    {% if latest_file %}
+    loadData();
+    {% endif %}
+  </script>
+</body>
+
+</html>

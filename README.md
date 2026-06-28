@@ -24,6 +24,7 @@ Run:
 ```sh
 termpower          # live TUI monitor (press q to quit)
 make record        # background CSV logging (Ctrl+C to stop)
+make web           # web dashboard at http://localhost:5000
 ```
 
 ## Logging to CSV
@@ -63,8 +64,28 @@ timestamp,energy_rate_w,percentage,state,charger_type
 | `make service` | Install systemd user service |
 | `make run` | Run termpower via venv |
 | `make record` | Run CSV logger via venv |
-| `make clean` | Remove venv, uninstall `termpower` command, disable and remove systemd service |
+| `make web` | Run web dashboard on http://localhost:5000 |
+| `make clean` | Remove venv, uninstall `termpower`, disable and remove systemd service |
 
-## CSV Storage Usage
+## Web dashboard
+
+A Flask web app at `web/app.py` visualises CSV data with Chart.js. Time-range selectors, zoom/pan, date picker, and colour-coded charging/discharging segments.
+
+```sh
+make web
+# open http://localhost:5000
+```
+
+## Project structure
+
+```
+logger.py     — sysfs power sensor (importable)
+termpower.py  — live TUI monitor (command: termpower)
+record.py     — background CSV logger
+web/app.py    — Flask web dashboard
+Makefile      — install/run targets
+```
+
+## Storage
 
 ~1.7 MB per day (9h of 1s logging), ~50 MB/month, ~600 MB/year.

@@ -2,7 +2,7 @@ VENV = venv
 PYTHON = $(VENV)/bin/python
 BINDIR = $(HOME)/.local/bin
 
-.PHONY: install service run record clean
+.PHONY: install service run record web clean
 
 install: $(VENV)
 	@mkdir -p $(BINDIR)
@@ -14,7 +14,7 @@ install: $(VENV)
 
 $(VENV):
 	python -m venv $(VENV)
-	$(VENV)/bin/pip install rich psutil
+	$(VENV)/bin/pip install rich psutil flask
 	@echo "Venv created at $(VENV)"
 
 service: $(VENV)
@@ -29,6 +29,9 @@ run:
 
 record:
 	$(PYTHON) record.py
+
+web:
+	$(PYTHON) web/app.py
 
 clean:
 	-systemctl --user disable --now power-logger 2>/dev/null
