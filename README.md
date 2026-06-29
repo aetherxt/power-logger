@@ -32,7 +32,7 @@ make web           # web dashboard at http://localhost:5000
 Logs power data every second to `~/power-log/YYYY-MM-DD.csv`:
 
 ```sh
-python record.py                          # default: 1s interval, flush every 10s
+python record.py                          # default: 5s interval, flush every 30s
 python record.py --interval 5             # log every 5 seconds
 python record.py --flush-interval 30      # write to disk every 30 seconds
 python record.py -o ~/data                # custom output directory
@@ -72,8 +72,7 @@ timestamp,energy_rate_w,percentage,state,charger_type
 A Flask web app at `web/app.py` visualises CSV data with Chart.js. Time-range selectors, zoom/pan, date picker, and colour-coded charging/discharging segments.
 
 ```sh
-make web
-# open http://localhost:5000
+make web     # runs on http://localhost:8000
 ```
 
 ## Project structure
@@ -88,4 +87,4 @@ Makefile      — install/run targets
 
 ## Storage
 
-~1.7 MB per day (9h of 1s logging), ~50 MB/month, ~600 MB/year.
+~340 KB per day (9h of 5s logging), ~10 MB/month, ~120 MB/year.

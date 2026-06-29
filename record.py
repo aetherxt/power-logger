@@ -8,8 +8,8 @@ from datetime import date
 
 from logger import get_power_info
 
-DEFAULT_INTERVAL = 1
-DEFAULT_FLUSH_INTERVAL = 10
+DEFAULT_INTERVAL = 5
+DEFAULT_FLUSH_INTERVAL = 30
 DEFAULT_OUTPUT_DIR = os.path.expanduser("~/power-log")
 HEADER = ["timestamp", "energy_rate_w", "percentage", "state", "charger_type"]
 

@@ -1,6 +1,6 @@
 [Unit]
 Description=Power stats CSV logger
-After=multi-user.target
+After=default.target
 
 [Service]
 Type=simple
