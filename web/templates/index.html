@@ -283,7 +283,7 @@
         }));
       }
       detectOscillation(raw, 5);
-      const points = insertGapSeparators(raw, 5000);
+      const points = insertGapSeparators(raw, 10000);
       chart.data.datasets[0].data = points;
 
       const xs = points.filter(p => p.y !== null).map(p => p.x);

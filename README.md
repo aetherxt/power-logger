@@ -24,16 +24,16 @@ Run:
 ```sh
 termpower          # live TUI monitor (press q to quit)
 make record        # background CSV logging (Ctrl+C to stop)
-make web           # web dashboard at http://localhost:5000
+make web           # web dashboard at http://localhost:8000
 ```
 
 ## Logging to CSV
 
-Logs power data every second to `~/power-log/YYYY-MM-DD.csv`:
+Logs power data every 3 seconds to `~/power-log/YYYY-MM-DD.csv`:
 
 ```sh
-python record.py                          # default: 5s interval, flush every 30s
-python record.py --interval 5             # log every 5 seconds
+python record.py                          # default: 3s interval, flush every 30s
+python record.py --interval 3             # log every 3 seconds
 python record.py --flush-interval 30      # write to disk every 30 seconds
 python record.py -o ~/data                # custom output directory
 ```
@@ -64,7 +64,7 @@ timestamp,energy_rate_w,percentage,state,charger_type
 | `make service` | Install systemd user service |
 | `make run` | Run termpower via venv |
 | `make record` | Run CSV logger via venv |
-| `make web` | Run web dashboard on http://localhost:5000 |
+| `make web` | Run web dashboard on http://localhost:8000 |
 | `make clean` | Remove venv, uninstall `termpower`, disable and remove systemd service |
 
 ## Web dashboard
@@ -87,4 +87,4 @@ Makefile      — install/run targets
 
 ## Storage
 
-~340 KB per day (9h of 5s logging), ~10 MB/month, ~120 MB/year.
+~600 KB per day (9h of 3s logging), ~18 MB/month, ~220 MB/year.
