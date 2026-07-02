@@ -90,6 +90,24 @@
         </div>
         <div class="relative h-[300px] w-full"><canvas id="batteryChart"></canvas></div>
       </div>
+
+      <div class="bg-[#24273a] rounded-xl p-5 w-full mt-5">
+        <h2 class="text-sm font-medium text-[#b8c0e0] mb-3">Statistics</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="bg-[#1e2030] rounded-lg p-3">
+            <div class="text-xs text-white mb-0.5">Avg Power (Unplugged)</div>
+            <div class="text-lg font-semibold text-[#cad3f5]" id="stat-power-unplugged">—</div>
+          </div>
+          <div class="bg-[#1e2030] rounded-lg p-3">
+            <div class="text-xs text-white mb-0.5">Avg Power (Plugged)</div>
+            <div id="stat-power-plugged" class="text-xs space-y-0.5">—</div>
+          </div>
+          <div class="bg-[#1e2030] rounded-lg p-3">
+            <div class="text-xs text-white mb-0.5">Battery Drain / hr (Unplugged)</div>
+            <div class="text-lg font-semibold text-[#cad3f5]" id="stat-drain-rate">—</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div id="no-data" class="{% if latest_file %}hidden{% endif %} text-center text-[#6e738d] py-16 text-lg">
@@ -232,6 +250,71 @@
       return out;
     }
 
+    function chargerLabel(type) {
+      if (!type) return '';
+      if (type.includes('PD')) return 'USB-C PD';
+      if (type === 'barrel') return 'Barrel';
+      return type;
+    }
+
+    function computeStats(data) {
+      const pts = data.map(d => ({
+        x: new Date(d.time).getTime(),
+        y: d.percentage, pct: d.percentage, w: d.energy_rate_w,
+        state: d.state, charger_type: d.charger_type,
+      }));
+      detectOscillation(pts, 5);
+
+      const dischargingPts = pts.filter(p => p.state === 'discharging');
+      const avgPowerUnplugged = dischargingPts.length
+        ? dischargingPts.reduce((s, p) => s + p.w, 0) / dischargingPts.length
+        : 0;
+
+      const charging = pts.filter(p => p.state === 'charging' && p.charger_type);
+      const typeMap = {};
+      charging.forEach(p => {
+        const t = p.charger_type;
+        if (!typeMap[t]) typeMap[t] = { sum: 0, count: 0 };
+        typeMap[t].sum += p.w;
+        typeMap[t].count++;
+      });
+
+      let totalRate = 0, segCount = 0;
+      let segStart = null, segStartPct = null;
+      const MIN_SEG_MS = 300000;
+      function closeSeg(prevPt) {
+        const durMs = prevPt.x - segStart;
+        if (durMs >= MIN_SEG_MS && segStartPct !== prevPt.pct) {
+          totalRate += (segStartPct - prevPt.pct) / (durMs / 3600000); segCount++;
+        }
+        segStart = null;
+      }
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i];
+        const gapBreak = i > 0 && (p.x - pts[i - 1].x) > 10000;
+        if (gapBreak && segStart !== null) closeSeg(pts[i - 1]);
+        if (p.state === 'discharging' && !p.osc) {
+          if (segStart === null) { segStart = p.x; segStartPct = p.pct; }
+        } else {
+          if (segStart !== null) closeSeg(pts[i - 1]);
+        }
+      }
+      if (segStart !== null) closeSeg(pts[pts.length - 1]);
+      const avgDrain = segCount > 0 ? totalRate / segCount : 0;
+
+      $('#stat-power-unplugged').text(avgPowerUnplugged > 0 ? avgPowerUnplugged.toFixed(1) + ' W' : '—');
+
+      const sortedTypes = Object.entries(typeMap).sort((a, b) => b[1].count - a[1].count);
+      let pluggedHtml = '';
+      sortedTypes.forEach(([type, { sum, count }]) => {
+        const avg = sum / count;
+        pluggedHtml += `<div class="flex justify-between"><span class="text-[#6e738d]">${chargerLabel(type)}</span><span class="text-[#cad3f5] font-medium">${avg.toFixed(1)} W</span></div>`;
+      });
+      $('#stat-power-plugged').html(pluggedHtml || '<span class="text-[#6e738d]">—</span>');
+
+      $('#stat-drain-rate').text(segCount > 0 ? avgDrain.toFixed(1) + '% / hr' : '—');
+    }
+
     function detectOscillation(pts, windowSize) {
       for (let i = 0; i < pts.length; i++) {
         const start = Math.max(0, i - windowSize);
@@ -336,6 +419,7 @@
           $('.range-btn[data-ms="0"], .chart-range-btn[data-ms="0"]')
             .removeClass('text-[#6e738d]')
             .addClass('bg-[#b7bdf8] text-[#1e2030]');
+          computeStats(fullData);
         })
         .fail(() => {
           $('#no-data').show();
